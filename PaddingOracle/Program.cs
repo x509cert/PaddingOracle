@@ -67,14 +67,14 @@ class PaddingOracle
     // 'decrypt' - LOL, more like brute force in real time
     private byte[] _decrypt(byte[] firstBlock, byte[] secondBlock)
     {
-        byte[] decrypted = new byte[block_size];
+        var decrypted = new byte[block_size];
 
         // Try all possible padding values
         for (int t = 0; t < block_size; t++)
         {
             // Padding is never 0, but it can be 16 when an entire block is just padding
             int padding = t + 1;
-            byte[] emulated = new byte[block_size];
+            var emulated = new byte[block_size];
             if (decrypted[block_size - 1] != 0)
             {
                 for (int i = 0; i < block_size; i++)
@@ -85,7 +85,8 @@ class PaddingOracle
                     emulated[i] = (byte)(padding ^ decrypted[i] ^ firstBlock[i]);
                 }
             }
-            byte[] cipher = new byte[block_size * 2];
+
+            var cipher = new byte[block_size * 2];
             Array.Copy(emulated, cipher, block_size);
             Array.Copy(secondBlock, 0, cipher, block_size, block_size);
             int validByte = -1;
@@ -109,11 +110,12 @@ class PaddingOracle
         int dataLength = block_size - decrypted[block_size - 1];
         if (dataLength > 0)
         {
-            byte[] removePadding = new byte[dataLength];
+            var removePadding = new byte[dataLength];
             Array.Copy(decrypted, removePadding, dataLength);
             return removePadding;
         }
-        else return decrypted;
+        else 
+            return decrypted;
     }
 }
 class Program
@@ -123,9 +125,7 @@ class Program
     static byte[] GetEncryptedBytes(string plaintext)
     {
         if (plaintext is null)
-        {
             throw new ArgumentNullException(nameof(plaintext));
-        }
 
         byte[] encrypted;
 
@@ -153,11 +153,7 @@ class Program
     static string GetDecryptedBytes(byte[] cipherText)
     {
         if (cipherText is null)
-        {
             throw new ArgumentNullException(nameof(cipherText));
-        }
-
-        string plaintext;
 
         using Aes aes = Aes.Create();
         aes.IV = _iv;
@@ -171,27 +167,26 @@ class Program
         using CryptoStream csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read);
         using StreamReader srDecrypt = new StreamReader(csDecrypt);
 
-        plaintext = srDecrypt.ReadToEnd();
+        return srDecrypt.ReadToEnd();
+    }
 
-        return plaintext;
+    // this is the 'padding oracle'
+    private static bool paddingChecker(byte[] cipher)
+    {
+        try
+        {
+            GetDecryptedBytes(cipher);
+            return true;
+        }
+        catch (CryptographicException ex)
+        {
+            return ex.Message != "Padding is invalid and cannot be removed.";
+        }
     }
 
     static void Main(string[] args)
     {
         byte[] ciphertext = GetEncryptedBytes("Today's secret message is: Attack at dawn, on the northern beachhead.");
-
-        bool paddingChecker(byte[] cipher)
-        {
-            try
-            {
-                GetDecryptedBytes(cipher);
-                return true;
-            }
-            catch (CryptographicException ex)
-            {
-                return ex.Message == "Padding is invalid and cannot be removed." ? false : true;
-            }
-        }
 
         // mount the attack
         var po = new PaddingOracle(paddingChecker, ciphertext, 16);
